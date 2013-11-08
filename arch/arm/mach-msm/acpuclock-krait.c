@@ -1073,6 +1073,9 @@ static struct notifier_block acpuclk_cpu_notifier = {
 
 static const int __init krait_needs_vmin(void)
 {
+#ifdef CONFIG_BYPASS_KRAIT_NEEDS_VMIN
+	return 0;
+#else
 	switch (read_cpuid_id()) {
 	case 0x511F04D0: /* KR28M2A20 */
 	case 0x511F04D1: /* KR28M2A21 */
@@ -1081,6 +1084,7 @@ static const int __init krait_needs_vmin(void)
 	default:
 		return 0;
 	};
+#endif
 }
 
 static void __init krait_apply_vmin(struct acpu_level *tbl)
