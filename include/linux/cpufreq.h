@@ -388,6 +388,9 @@ extern struct cpufreq_governor cpufreq_gov_badass;
 #elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_TRIPNDROID)
 extern struct cpufreq_governor cpufreq_gov_tripndroid;
 #define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_tripndroid)
+#elif defined(CONFIG_CPU_FREQ_DEFAULT_GOV_ELEMENTALX)
+extern struct cpufreq_governor cpufreq_gov_elementalx;
+#define CPUFREQ_DEFAULT_GOVERNOR	(&cpufreq_gov_elementalx)
 #endif
 
 
