@@ -71,17 +71,18 @@ static void cy8c_cs_late_resume(struct early_suspend *h);
 #define S2W_CONT_TOUT 250
 #define DEBUG 0
 
-#define DT2W_TIMEOUT_MAX 275 
+#define DT2W_TIMEOUT_MAX 275
 #define DT2W_TIMEOUT_MIN 150
 
-static int pocket_detect = 0;
+static int pocket_detect = 1;
 static int s2w_switch = 1;
+static int s2s_switch = 1;
 static int dt2w_switch = 2;
-static int dt2s_switch = 0;
+static int dt2s_switch = 2;
 static bool scr_suspended = false;
 static int s2w_h[2][3] = {{0, 0, 0}, {0, 0, 0}};
 static cputime64_t s2w_t[3] = {0, 0, 0};
-static cputime64_t dt2w_time[2] = {0, 0}; 
+static cputime64_t dt2w_time[2] = {0, 0};
 static struct input_dev * sweep2wake_pwrdev;
 static DEFINE_MUTEX(pwrlock);
 
@@ -91,24 +92,6 @@ extern uint8_t touchscreen_is_on(void) {
 	}
 	return 0;
 }
-
-#ifdef CONFIG_CMDLINE_OPTIONS
-static int __init cy8c_read_s2w_cmdline(char *s2w)
-{
-        if (strcmp(s2w, "1") == 0) {
-		printk(KERN_INFO "[cmdline_s2w]: Sweep2Wake enabled. | s2w='%s'", s2w);
-		s2w_switch = 1;
-	} else if (strcmp(s2w, "0") == 0) {
-		printk(KERN_INFO "[cmdline_s2w]: Sweep2Wake disabled. | s2w='%s'", s2w);
-		s2w_switch = 0;
-	} else {
-		printk(KERN_INFO "[cmdline_s2w]: No valid input found. Sweep2Wake disabled. | s2w='%s'", s2w);
-		s2w_switch = 0;
-	}
-	return 1;
-}
-__setup("s2w=", cy8c_read_s2w_cmdline);
-#endif
 
 extern void sweep2wake_setdev(struct input_dev * input_device) {
 	sweep2wake_pwrdev = input_device;
@@ -173,10 +156,10 @@ static void s2w_reset(void) {
 
 static void dt2w_func(int btn_state, int btn_id, cputime64_t dtrigger_time) {
 
-	int dt2w_button;	
+	int dt2w_button;
 
 	if (btn_state != 0)
-		return;	
+		return;
 
 	if (dt2w_switch == 3) {
 		dt2w_button = 4;
@@ -193,17 +176,17 @@ static void dt2w_func(int btn_state, int btn_id, cputime64_t dtrigger_time) {
 	if ((dt2w_time[0]-dt2w_time[1]) < DT2W_TIMEOUT_MAX) {
                printk(KERN_INFO"[DT2W]: OFF->ON\n");
                sweep2wake_pwrtrigger();
-	} 
+	}
 
         return;
 }
 
 static void dt2s_func(int btn_state, int btn_id, cputime64_t dtrigger_time) {
 
-	int dt2s_button;	
+	int dt2s_button;
 
 	if (btn_state != 0)
-		return;	
+		return;
 
 	if (dt2s_switch == 3) {
 		dt2s_button = 4;
@@ -220,7 +203,7 @@ static void dt2s_func(int btn_state, int btn_id, cputime64_t dtrigger_time) {
 	if ((dt2w_time[0]-dt2w_time[1]) < DT2W_TIMEOUT_MAX) {
                printk(KERN_INFO"[DT2W]: OFF->ON\n");
                sweep2wake_pwrtrigger();
-	} 
+	}
 
         return;
 }
@@ -255,7 +238,7 @@ static void do_sweep2wake(int btn_state, int btn_id, cputime64_t trigger_time) {
         }
 #endif
 
-        if (scr_suspended && s2w_switch == 1) {
+        if (scr_suspended) {
                 if (((s2w_h[0][2] == 0) && (s2w_h[1][2] == 1) && ((s2w_t[1]-s2w_t[2]) < S2W_CONT_TOUT)) &&
                     ((s2w_h[0][1] == 0) && (s2w_h[1][1] == 2) && ((s2w_t[0]-s2w_t[1]) < S2W_CONT_TOUT)) &&
                     ((s2w_h[0][0] == 0) && (s2w_h[1][0] == 4))) {
@@ -583,7 +566,7 @@ static ssize_t cy8c_sweep2wake_show(struct device *dev,
 static ssize_t cy8c_sweep2wake_dump(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	if (buf[0] >= '0' && buf[0] <= '2' && buf[1] == '\n')
+	if (buf[0] >= '0' && buf[0] <= '1' && buf[1] == '\n')
 		if (s2w_switch != buf[0] - '0')
 			s2w_switch = buf[0] - '0';
 
@@ -593,6 +576,28 @@ static ssize_t cy8c_sweep2wake_dump(struct device *dev,
 static DEVICE_ATTR(sweep2wake, (S_IWUSR|S_IRUGO),
 	cy8c_sweep2wake_show, cy8c_sweep2wake_dump);
 
+static ssize_t cy8c_sweep2sleep_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+
+	count += sprintf(buf, "%d\n", s2s_switch);
+
+	return count;
+}
+
+static ssize_t cy8c_sweep2sleep_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	if (buf[0] >= '0' && buf[0] <= '1' && buf[1] == '\n')
+		if (s2s_switch != buf[0] - '0')
+			s2s_switch = buf[0] - '0';
+
+	return count;
+}
+
+static DEVICE_ATTR(sweep2sleep, (S_IWUSR|S_IRUGO),
+	cy8c_sweep2sleep_show, cy8c_sweep2sleep_dump);
 
 static ssize_t cy8c_dt2wake_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -946,7 +951,11 @@ static void report_key_func(struct cy8c_cs_data *cs, uint8_t vk)
                 } else if (cs->btn_count == 1) {
                         btn_state = 0; // single button
                 }
-                if (s2w_switch > 0) {
+                if (s2w_switch > 0 && scr_suspended) {
+                        trigger_time = ktime_to_ms(ktime_get());
+                        do_sweep2wake(btn_state, btn_id, trigger_time);
+                }
+                if (s2s_switch > 0 && !scr_suspended) {
                         trigger_time = ktime_to_ms(ktime_get());
                         do_sweep2wake(btn_state, btn_id, trigger_time);
                 }
@@ -1185,14 +1194,14 @@ static int cy8c_cs_suspend(struct i2c_client *client, pm_message_t mesg)
 	pr_info("[cap] %s\n", __func__);
 
 #ifdef CONFIG_TOUCHSCREEN_CYPRESS_SWEEP2WAKE
-	if (s2w_switch == 1 || dt2w_switch > 0) {
+	if (s2w_switch || dt2w_switch) {
 		//screen off, enable_irq_wake
 		enable_irq_wake(client->irq);
 	}
 #endif
 
 #ifdef CONFIG_TOUCHSCREEN_CYPRESS_SWEEP2WAKE
-        if ((s2w_switch == 0 || s2w_switch == 2) && dt2w_switch == 0) {
+        if (!s2w_switch && !dt2w_switch) {
 #endif
         	if (cs->func_support & CS_FUNC_PRINTRAW) {
         		ret = cancel_delayed_work_sync(&cs->work_raw);
@@ -1220,7 +1229,7 @@ static int cy8c_cs_resume(struct i2c_client *client)
 
 	pr_info("[cap] %s\n", __func__);
 #ifdef CONFIG_TOUCHSCREEN_CYPRESS_SWEEP2WAKE
-	if (s2w_switch == 0 && dt2w_switch == 0) {
+	if (!s2w_switch && !dt2w_switch) {
                 disable_irq_wake(client->irq);
 #endif
         	cs->reset();
